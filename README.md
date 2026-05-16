@@ -232,8 +232,6 @@ npm run dev
 
 ---
 
-## 🏆 Designed For
 
-Final-year Computer Science / Information Technology students presenting an **enterprise-grade AI-powered academic platform** as a capstone or final year project.
 
 Built with ❤️ using React, FastAPI, PostgreSQL, Neo4j, Llama 3, Docker.
