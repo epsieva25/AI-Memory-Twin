@@ -1,0 +1,209 @@
+/* ─────────────────────────────────────────────────────────────────
+   AI Memory Twin for Students — Global Styles
+   Tailwind CSS + Custom Glassmorphism Design System
+   ───────────────────────────────────────────────────────────────── */
+
+@import "tailwindcss";
+
+/* ── CSS Custom Properties ────────────────────────────────────── */
+:root {
+  --color-bg-dark: #020817;
+  --color-bg-card: rgba(255, 255, 255, 0.04);
+  --color-border: rgba(255, 255, 255, 0.08);
+  --color-purple: #a855f7;
+  --color-blue: #3b82f6;
+  --color-cyan: #06b6d4;
+  --color-green: #10b981;
+  --color-red: #ef4444;
+  --glass-blur: 16px;
+  --glass-bg: rgba(255, 255, 255, 0.04);
+  --glass-border: rgba(255, 255, 255, 0.08);
+}
+
+/* ── Base Reset ───────────────────────────────────────────────── */
+* { box-sizing: border-box; }
+
+html {
+  scroll-behavior: smooth;
+  font-size: 16px;
+}
+
+body {
+  font-family: 'Inter', system-ui, -apple-system, sans-serif;
+  -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
+  background-color: var(--color-bg-dark);
+  color: #e2e8f0;
+  min-height: 100vh;
+}
+
+code, pre, kbd {
+  font-family: 'JetBrains Mono', 'Fira Code', monospace;
+}
+
+/* ── Animated Gradient Background ────────────────────────────── */
+.bg-animated {
+  background: 
+    radial-gradient(ellipse at 15% 20%, rgba(168, 85, 247, 0.12) 0%, transparent 50%),
+    radial-gradient(ellipse at 85% 80%, rgba(59, 130, 246, 0.10) 0%, transparent 50%),
+    radial-gradient(ellipse at 50% 50%, rgba(6, 182, 212, 0.06) 0%, transparent 60%),
+    #020817;
+  animation: bgShift 15s ease-in-out infinite alternate;
+}
+
+@keyframes bgShift {
+  0%   { background-position: 0% 0%, 100% 100%, 50% 50%; }
+  50%  { background-position: 10% 5%, 90% 95%, 55% 45%; }
+  100% { background-position: 5% 10%, 95% 90%, 45% 55%; }
+}
+
+/* ── Glassmorphism Utilities ──────────────────────────────────── */
+.glass {
+  background: var(--glass-bg);
+  backdrop-filter: blur(var(--glass-blur));
+  -webkit-backdrop-filter: blur(var(--glass-blur));
+  border: 1px solid var(--glass-border);
+}
+
+.glass-panel {
+  background: rgba(255, 255, 255, 0.06);
+  backdrop-filter: blur(24px);
+  -webkit-backdrop-filter: blur(24px);
+  border: 1px solid rgba(255, 255, 255, 0.12);
+  box-shadow: 
+    0 8px 32px rgba(0, 0, 0, 0.3),
+    inset 0 1px 0 rgba(255, 255, 255, 0.08);
+}
+
+/* ── Gradient Text ────────────────────────────────────────────── */
+.gradient-text {
+  background: linear-gradient(135deg, #a855f7, #3b82f6, #06b6d4);
+  -webkit-background-clip: text;
+  background-clip: text;
+  -webkit-text-fill-color: transparent;
+}
+
+.gradient-text-warm {
+  background: linear-gradient(135deg, #f59e0b, #ef4444, #a855f7);
+  -webkit-background-clip: text;
+  background-clip: text;
+  -webkit-text-fill-color: transparent;
+}
+
+/* ── Neon Glow Effects ────────────────────────────────────────── */
+.glow-purple { box-shadow: 0 0 20px rgba(168, 85, 247, 0.25); }
+.glow-blue   { box-shadow: 0 0 20px rgba(59, 130, 246, 0.25); }
+.glow-green  { box-shadow: 0 0 20px rgba(16, 185, 129, 0.25); }
+.glow-red    { box-shadow: 0 0 20px rgba(239, 68, 68, 0.25); }
+
+/* ── Custom Scrollbar ─────────────────────────────────────────── */
+.custom-scrollbar::-webkit-scrollbar { width: 4px; height: 4px; }
+.custom-scrollbar::-webkit-scrollbar-track { background: rgba(255,255,255,0.03); border-radius: 99px; }
+.custom-scrollbar::-webkit-scrollbar-thumb { background: rgba(255,255,255,0.15); border-radius: 99px; }
+.custom-scrollbar::-webkit-scrollbar-thumb:hover { background: rgba(168, 85, 247, 0.4); }
+
+/* Apply globally */
+* {
+  scrollbar-width: thin;
+  scrollbar-color: rgba(255,255,255,0.15) transparent;
+}
+
+/* ── Sidebar Active Link Indicator ───────────────────────────── */
+.nav-link-active {
+  background: rgba(168, 85, 247, 0.15);
+  border-color: rgba(168, 85, 247, 0.3);
+  color: #d8b4fe;
+}
+
+/* ── Neon Border Animation ────────────────────────────────────── */
+.border-animate {
+  background: linear-gradient(var(--color-bg-dark), var(--color-bg-dark)) padding-box,
+              linear-gradient(135deg, #a855f7, #3b82f6) border-box;
+  border: 1px solid transparent;
+}
+
+/* ── Card Hover Lift ─────────────────────────────────────────── */
+.card-hover {
+  transition: transform 0.2s ease, box-shadow 0.2s ease;
+}
+.card-hover:hover {
+  transform: translateY(-2px);
+  box-shadow: 0 12px 40px rgba(0, 0, 0, 0.4);
+}
+
+/* ── Pulse Glow Animation ─────────────────────────────────────── */
+@keyframes pulseGlow {
+  0%, 100% { box-shadow: 0 0 8px rgba(168, 85, 247, 0.3); }
+  50%       { box-shadow: 0 0 24px rgba(168, 85, 247, 0.6); }
+}
+.pulse-glow { animation: pulseGlow 2s ease-in-out infinite; }
+
+/* ── Prose/Markdown Styles ────────────────────────────────────── */
+.prose {
+  color: #e2e8f0;
+  max-width: 100%;
+}
+.prose h1, .prose h2, .prose h3, .prose h4 {
+  color: #f1f5f9;
+  font-weight: 700;
+  margin-top: 1.2em;
+  margin-bottom: 0.5em;
+}
+.prose p { margin: 0.5em 0; line-height: 1.7; }
+.prose ul, .prose ol { padding-left: 1.4em; margin: 0.5em 0; }
+.prose li { margin: 0.25em 0; }
+.prose strong { color: #f1f5f9; font-weight: 600; }
+.prose a { color: #a855f7; text-decoration: underline; }
+.prose code {
+  background: rgba(0,0,0,0.4);
+  color: #c4b5fd;
+  padding: 0.1em 0.4em;
+  border-radius: 4px;
+  font-size: 0.875em;
+}
+.prose pre {
+  background: rgba(0,0,0,0.5);
+  border: 1px solid rgba(255,255,255,0.08);
+  border-radius: 12px;
+  padding: 1em 1.25em;
+  overflow-x: auto;
+}
+.prose pre code {
+  background: transparent;
+  color: #e2e8f0;
+  padding: 0;
+}
+.prose blockquote {
+  border-left: 3px solid rgba(168, 85, 247, 0.5);
+  padding-left: 1em;
+  color: #94a3b8;
+  font-style: italic;
+}
+
+/* ── Mobile Responsive Helpers ───────────────────────────────── */
+@media (max-width: 768px) {
+  .glass-panel { backdrop-filter: blur(12px); }
+  body { font-size: 15px; }
+}
+
+/* ── Light Mode Support ──────────────────────────────────────── */
+.light-mode {
+  --color-bg-dark: #f8fafc;
+  --glass-bg: rgba(255, 255, 255, 0.7);
+  --glass-border: rgba(0, 0, 0, 0.08);
+  color: #1e293b;
+}
+.light-mode body { background-color: #f1f5f9; color: #1e293b; }
+
+/* ── Focus Styles (Accessibility) ────────────────────────────── */
+:focus-visible {
+  outline: 2px solid rgba(168, 85, 247, 0.7);
+  outline-offset: 2px;
+}
+
+/* ── Loading Skeleton Animation ──────────────────────────────── */
+@keyframes shimmer {
+  0%   { opacity: 0.4; }
+  50%  { opacity: 0.8; }
+  100% { opacity: 0.4; }
+}

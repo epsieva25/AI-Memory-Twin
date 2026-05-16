@@ -1,0 +1,41 @@
+# Environment & secrets
+.env
+.env.local
+*.pem
+credentials.json
+
+# Python
+__pycache__/
+*.py[cod]
+*$py.class
+.Python
+.venv/
+venv/
+env/
+*.egg-info/
+.pytest_cache/
+.mypy_cache/
+
+# Node / frontend build
+node_modules/
+frontend/dist/
+frontend/node_modules/
+*.local
+
+# IDE & OS
+.vscode/
+.idea/
+.DS_Store
+Thumbs.db
+*.swp
+*.suo
+
+# Logs
+*.log
+logs/
+
+# Docker / runtime (not source)
+.docker/
+
+# Vite temp
+vite.config.js.timestamp-*

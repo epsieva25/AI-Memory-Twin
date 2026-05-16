@@ -1,0 +1,36 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 100 100">
+  <defs>
+    <linearGradient id="g1" x1="0%" y1="0%" x2="100%" y2="100%">
+      <stop offset="0%" style="stop-color:#a855f7"/>
+      <stop offset="100%" style="stop-color:#3b82f6"/>
+    </linearGradient>
+    <filter id="glow">
+      <feGaussianBlur stdDeviation="3" result="blur"/>
+      <feComposite in="SourceGraphic" in2="blur" operator="over"/>
+    </filter>
+  </defs>
+  <!-- Background circle -->
+  <circle cx="50" cy="50" r="48" fill="#020817" stroke="url(#g1)" stroke-width="2.5"/>
+  <!-- Neural network nodes -->
+  <circle cx="50" cy="22" r="5" fill="url(#g1)" filter="url(#glow)"/>
+  <circle cx="25" cy="45" r="4" fill="#3b82f6" filter="url(#glow)"/>
+  <circle cx="75" cy="45" r="4" fill="#a855f7" filter="url(#glow)"/>
+  <circle cx="35" cy="72" r="4" fill="#06b6d4" filter="url(#glow)"/>
+  <circle cx="65" cy="72" r="4" fill="#06b6d4" filter="url(#glow)"/>
+  <circle cx="50" cy="82" r="5" fill="url(#g1)" filter="url(#glow)"/>
+  <!-- Connections -->
+  <line x1="50" y1="22" x2="25" y2="45" stroke="rgba(168,85,247,0.5)" stroke-width="1.5"/>
+  <line x1="50" y1="22" x2="75" y2="45" stroke="rgba(59,130,246,0.5)" stroke-width="1.5"/>
+  <line x1="25" y1="45" x2="35" y2="72" stroke="rgba(168,85,247,0.4)" stroke-width="1.2"/>
+  <line x1="25" y1="45" x2="65" y2="72" stroke="rgba(168,85,247,0.3)" stroke-width="1.2"/>
+  <line x1="75" y1="45" x2="35" y2="72" stroke="rgba(59,130,246,0.3)" stroke-width="1.2"/>
+  <line x1="75" y1="45" x2="65" y2="72" stroke="rgba(59,130,246,0.4)" stroke-width="1.2"/>
+  <line x1="35" y1="72" x2="50" y2="82" stroke="rgba(6,182,212,0.5)" stroke-width="1.5"/>
+  <line x1="65" y1="72" x2="50" y2="82" stroke="rgba(6,182,212,0.5)" stroke-width="1.5"/>
+  <!-- Center brain icon path -->
+  <path d="M42 38 Q38 34 34 38 Q30 42 32 48 Q28 50 28 55 Q28 62 35 64 Q35 68 40 68 L60 68 Q65 68 65 64 Q72 62 72 55 Q72 50 68 48 Q70 42 66 38 Q62 34 58 38 Q55 32 50 32 Q45 32 42 38Z" 
+        fill="none" stroke="rgba(226,232,240,0.6)" stroke-width="1.8" stroke-linejoin="round"/>
+  <line x1="50" y1="32" x2="50" y2="68" stroke="rgba(168,85,247,0.4)" stroke-width="1.2"/>
+  <path d="M50 45 Q44 42 40 48 M50 45 Q56 42 60 48" stroke="rgba(226,232,240,0.5)" stroke-width="1.2" fill="none"/>
+  <path d="M38 55 Q42 58 50 55 Q58 58 62 55" stroke="rgba(226,232,240,0.4)" stroke-width="1.2" fill="none"/>
+</svg>
