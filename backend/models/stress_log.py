@@ -9,11 +9,11 @@ class StressLog(Base):
 
     id = Column(Integer, primary_key=True, index=True)
     student_id = Column(Integer, ForeignKey("students.id"), nullable=False, index=True)
-    stress_level = Column(Float, nullable=False)  # 0-100
-    mood = Column(String(50), nullable=False)  # happy, okay, stressed, anxious, burnout
+    stress_level = Column(Integer, nullable=False)  # 0-100
     sleep_hours = Column(Float, nullable=False)
-    energy_level = Column(Float, default=50.0)  # 0-100
-    notes = Column(String(1000), nullable=True)
+    mood = Column(String(100), nullable=False)
+    energy_level = Column(Integer, nullable=False)  # 0-100
     timestamp = Column(DateTime, default=datetime.utcnow, index=True)
 
     student = relationship("Student", back_populates="stress_logs")
+

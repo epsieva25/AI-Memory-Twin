@@ -7,6 +7,7 @@ from sqlalchemy.orm import Session
 from models.academic_record import AcademicRecord
 from models.stress_log import StressLog
 from models.study_plan import StudyPlan
+from models.student import Student
 
 
 def generate_study_plan(student_id: int, db: Session) -> List[StudyPlan]:
@@ -19,16 +20,18 @@ def generate_study_plan(student_id: int, db: Session) -> List[StudyPlan]:
         StressLog.student_id == student_id
     ).order_by(StressLog.timestamp.desc()).first()
 
+    student = db.query(Student).filter(Student.id == student_id).first()
+    base_hours = (student.daily_study_hours if student and student.daily_study_hours else 2.0)
+
     stress_level = stress_log.stress_level if stress_log else 40.0
     sleep_hours = stress_log.sleep_hours if stress_log else 7.0
 
-    # Determine available study capacity
     if stress_level > 70 or sleep_hours < 6:
-        daily_capacity = 3  # hours
+        daily_capacity = max(1.0, base_hours * 0.6)
     elif stress_level > 50:
-        daily_capacity = 4
+        daily_capacity = max(1.5, base_hours * 0.8)
     else:
-        daily_capacity = 5
+        daily_capacity = base_hours
 
     # Sort subjects by weakness (lowest marks first)
     sorted_records = sorted(records, key=lambda r: r.marks)
@@ -48,7 +51,7 @@ def generate_study_plan(student_id: int, db: Session) -> List[StudyPlan]:
             duration=round(duration, 1),
             priority=priority,
             deadline=base_date + timedelta(days=i + 1),
-            is_completed=False,
+            completed=False,
             ai_generated=True
         )
         db.add(task)

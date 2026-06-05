@@ -20,13 +20,7 @@ def print_status(message, success=None):
 def test_postgresql_details():
     """PostgreSQL detailed verification."""
     try:
-        conn = pg_connect(
-            host=settings.postgres_host,
-            port=settings.postgres_port,
-            user=settings.postgres_user,
-            password=settings.postgres_password,
-            database=settings.postgres_db
-        )
+        conn = pg_connect(settings.database_url)
         cursor = conn.cursor()
         
         # 1. List tables
@@ -49,15 +43,14 @@ def test_postgresql_details():
             conn.close()
             return False
         
-        # 2. Check demo student
-        cursor.execute("SELECT id, name, email, department, year FROM students WHERE email = %s", 
-                       ('demo@memorytwin.ai',))
+        # 2. Check active student
+        cursor.execute("SELECT id, full_name, department, year FROM students LIMIT 1")
         student = cursor.fetchone()
         if student:
-            print_status(f"Demo student found: ID={student[0]}, Name={student[1]}, Email={student[2]}", True)
+            print_status(f"Active student found: ID={student[0]}, Name={student[1]}", True)
             student_id = student[0]
         else:
-            print_status("Demo student not found", False)
+            print_status("Active student not found", False)
             conn.close()
             return False
         

@@ -2,19 +2,20 @@
 Graph routes — Neo4j knowledge graph visualization.
 
 Fixes applied:
-  - Added top-level Student import (was missing, caused NameError on /student/{id}).
+  - Added top-level Student import.
   - All routes now have try/except with fallback empty graph data.
   - Neo4j being offline no longer crashes the backend.
+  - Swapped get_demo_student with get_active_student and raise 404 if profile not found.
 """
 import logging
 import traceback
 import math
-from fastapi import APIRouter, Depends
+from fastapi import APIRouter, Depends, HTTPException
 from sqlalchemy.orm import Session
-from database.connection import get_db
+from database.connection import get_db, get_active_student
 from models.academic_record import AcademicRecord
 from models.stress_log import StressLog
-from models.student import Student  # ← was missing, caused NameError
+from models.student import Student
 
 logger = logging.getLogger(__name__)
 
@@ -47,35 +48,22 @@ def _sanitize(val, default):
     return val
 
 
-def get_demo_student(db: Session):
-    """Get or create the default demo student."""
-    student = db.query(Student).filter(Student.email == "demo@memorytwin.ai").first()
-    if not student:
-        student = Student(
-            name="Mary Jasper",
-            email="demo@memorytwin.ai",
-            department="CSE",
-            year=4,
-        )
-        db.add(student)
-        db.commit()
-        db.refresh(student)
-    return student
-
-
+@router.get("")
 @router.get("/student-map")
 def get_student_map(db: Session = Depends(get_db)):
-    """Build Neo4j graph for the demo student and return node/link data."""
+    """Build Neo4j graph for the active student and return node/link data."""
     try:
         get_student_graph, create_student_node, create_subject_relationship, create_stress_performance_link = _try_neo4j_import()
 
-        student = get_demo_student(db)
+        student = get_active_student(db)
+        if not student:
+            raise HTTPException(status_code=404, detail="Student profile not found")
 
         if create_student_node:
             try:
                 create_student_node(
                     student_id=student.id,
-                    name=student.name,
+                    name=student.full_name,
                     department=student.department,
                     year=student.year,
                 )
@@ -106,6 +94,8 @@ def get_student_map(db: Session = Depends(get_db)):
             return get_student_graph(student.id)
 
         return _EMPTY_GRAPH
+    except HTTPException:
+        raise
     except Exception as e:
         logger.error(f"Error in GET /api/graph/student-map: {e}\n{traceback.format_exc()}")
         return _EMPTY_GRAPH
@@ -124,7 +114,7 @@ def get_student_specific_graph(student_id: int, db: Session = Depends(get_db)):
                 if student:
                     create_student_node(
                         student_id=student.id,
-                        name=student.name,
+                        name=student.full_name,
                         department=student.department,
                         year=student.year,
                     )
@@ -169,12 +159,15 @@ def get_student_specific_graph(student_id: int, db: Session = Depends(get_db)):
 def get_performance_network(db: Session = Depends(get_db)):
     """Return a subject performance network built from PostgreSQL data (no Neo4j needed)."""
     try:
-        student = get_demo_student(db)
+        student = get_active_student(db)
+        if not student:
+            raise HTTPException(status_code=404, detail="Student profile not found")
+
         records = db.query(AcademicRecord).filter(
             AcademicRecord.student_id == student.id
         ).all()
 
-        nodes = [{"id": "Student", "group": 1, "val": 20, "name": student.name}]
+        nodes = [{"id": "Student", "group": 1, "val": 20, "name": student.full_name}]
         links = []
 
         for r in records:
@@ -190,6 +183,8 @@ def get_performance_network(db: Session = Depends(get_db)):
 
         return {"nodes": nodes, "links": links}
 
+    except HTTPException:
+        raise
     except Exception as e:
         logger.error(
             f"Error in GET /api/graph/performance-network: {e}\n{traceback.format_exc()}"

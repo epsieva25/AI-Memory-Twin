@@ -1,0 +1,20 @@
+__pycache__/
+**/__pycache__/
+*.pyc
+*.pyo
+.env
+.venv/
+venv/
+env/
+instance/
+.pytest_cache/
+.pytest_cache
+.coverage
+htmlcov/
+.git
+.gitignore
+*.log
+# Exclude large generated files — regenerated at runtime or mounted as volumes
+datasets/*.csv
+ml/*.pkl
+verify_*.py

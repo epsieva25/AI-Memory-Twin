@@ -129,7 +129,7 @@ AI Memory Twin for Students/
 |-------------------|----------------------------------|------------|
 | **Academics**     | `/api/academics/`                | GET / POST |
 |                   | `/api/academics/{id}`            | PUT / DEL  |
-| **Planner**       | `/api/planner/history`           | GET        |
+| **Planner**       | `/api/planner`                   | GET / POST |
 |                   | `/api/planner/generate`          | POST       |
 |                   | `/api/planner/{id}`              | PUT / DEL  |
 | **AI Tutor**      | `/api/tutor/chat`                | POST       |

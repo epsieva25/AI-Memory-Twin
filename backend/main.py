@@ -41,13 +41,6 @@ async def lifespan(app: FastAPI):
     except Exception as e:
         logger.error(f"❌ Database init failed: {e}")
 
-    # Auto-seed demo data on first run
-    try:
-        from utils.seed import seed_database
-        seed_database()
-    except Exception as e:
-        logger.warning(f"⚠️  Auto-seed skipped: {e}")
-
     # AI startup validation (Ollama connectivity + Llama3 inference warmup)
     try:
         from services.llm_service import validate_ai_startup
@@ -129,6 +122,7 @@ app.add_middleware(
 )
 
 # ─── Routers ──────────────────────────────────────────────────────────────────
+from routes.profile import router as profile_router
 from routes.academics import router as academics_router
 from routes.planner import router as planner_router
 from routes.notifications import router as notifications_router
@@ -140,7 +134,7 @@ from routes.graph import router as graph_router
 from routes.agents import router as agents_router
 
 for router in [
-    academics_router, planner_router, notifications_router,
+    profile_router, academics_router, planner_router, notifications_router,
     analytics_router, predictions_router, tutor_router, stress_router,
     graph_router, agents_router
 ]:

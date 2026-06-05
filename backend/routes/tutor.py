@@ -2,43 +2,28 @@
 AI Tutor routes — Ollama/Llama3 powered chat, quiz, and summarization.
 
 Fixes applied:
-  - /chat endpoint now always returns a response (never hangs).
-  - DB failure when saving history is silently caught (response still returns).
   - All routes have structured error responses.
-  - Added timeout protection in route layer.
+  - Swapped get_demo_student with get_active_student.
+  - Personalize AI Tutor context: gather student profile, grades, and stress in /chat.
+  - Multi-turn conversation history injection for chat.
+  - Automate Asked Concept relationship in Neo4j graph updates.
+  - Fixed ChatbotHistory saving (uses prompt instead of question, removed session_id).
 """
 import uuid
 import logging
 import traceback
 from datetime import datetime
-from fastapi import APIRouter, Depends
+from fastapi import APIRouter, Depends, HTTPException
 from fastapi.responses import JSONResponse
 from sqlalchemy.orm import Session
 from typing import List
-from database.connection import get_db
+from database.connection import get_db, get_active_student
 from models.chatbot_history import ChatbotHistory
 from schemas.schemas import ChatMessage, ChatResponse, ChatHistoryResponse
 
 logger = logging.getLogger(__name__)
 
 router = APIRouter(prefix="/api/tutor", tags=["AI Tutor"])
-
-
-def get_demo_student(db: Session):
-    """Get or create the default demo student."""
-    from models.student import Student
-    student = db.query(Student).filter(Student.email == "demo@memorytwin.ai").first()
-    if not student:
-        student = Student(
-            name="Mary Jasper",
-            email="demo@memorytwin.ai",
-            department="CSE",
-            year=4,
-        )
-        db.add(student)
-        db.commit()
-        db.refresh(student)
-    return student
 
 
 @router.post("/chat", response_model=ChatResponse)
@@ -53,9 +38,48 @@ def chat(
     session_id = msg.session_id or str(uuid.uuid4())
     now = datetime.utcnow()
 
+    student = get_active_student(db)
+    if not student:
+        raise HTTPException(status_code=404, detail="Student profile not found")
+
+    # Sync Asked Concept to Neo4j (async/non-blocking trigger)
     try:
-        from services.llm_service import tutor_response
-        response_text = tutor_response(msg.message)
+        from graphdb.neo4j_service import create_concept_asked_relationship
+        create_concept_asked_relationship(student.id, msg.message)
+    except Exception as neo_e:
+        logger.warning(f"Neo4j asked concept sync failed: {neo_e}")
+
+    try:
+        from services.student_context import build_student_context, context_to_system_prompt
+        ctx = build_student_context(student, db)
+        system_prompt = context_to_system_prompt(ctx)
+    except Exception as e:
+        logger.warning(f"Failed to compile personalization context: {e}")
+        system_prompt = (
+            "You are an expert AI tutor for university students. "
+            "Explain concepts clearly with examples. Use Markdown formatting."
+        )
+
+    # Retrieve multi-turn chat history
+    try:
+        history_entries = (
+            db.query(ChatbotHistory)
+            .filter(ChatbotHistory.student_id == student.id)
+            .order_by(ChatbotHistory.timestamp.desc())
+            .limit(6)
+            .all()
+        )
+        llm_history = []
+        for entry in reversed(history_entries):
+            llm_history.append({"role": "user", "content": entry.prompt})
+            llm_history.append({"role": "assistant", "content": entry.response})
+    except Exception as e:
+        logger.warning(f"Failed to retrieve chat history: {e}")
+        llm_history = []
+
+    try:
+        from services.llm_service import chat_with_llm
+        response_text = chat_with_llm(msg.message, system_prompt=system_prompt, history=llm_history)
     except Exception as e:
         logger.error(f"LLM call failed in /api/tutor/chat: {e}\n{traceback.format_exc()}")
         from services.llm_service import _fallback_response
@@ -63,12 +87,11 @@ def chat(
 
     # Save to chat history (non-blocking — failure here doesn't affect the response)
     try:
-        student = get_demo_student(db)
         history_entry = ChatbotHistory(
             student_id=student.id,
-            question=msg.message,
+            prompt=msg.message,
             response=response_text,
-            session_id=session_id,
+            timestamp=now
         )
         db.add(history_entry)
         db.commit()
@@ -87,9 +110,11 @@ def get_chat_history(
     limit: int = 20,
     db: Session = Depends(get_db),
 ):
-    """Return the last N chat messages for the demo student."""
+    """Return the last N chat messages for the active student."""
     try:
-        student = get_demo_student(db)
+        student = get_active_student(db)
+        if not student:
+            raise HTTPException(status_code=404, detail="Student profile not found")
         return (
             db.query(ChatbotHistory)
             .filter(ChatbotHistory.student_id == student.id)
@@ -97,6 +122,8 @@ def get_chat_history(
             .limit(limit)
             .all()
         )
+    except HTTPException:
+        raise
     except Exception as e:
         logger.error(f"Error in GET /api/tutor/history: {e}\n{traceback.format_exc()}")
         return []

@@ -95,7 +95,7 @@ curl http://localhost:8000/api/predict/burnout \
   -H "Authorization: Bearer $TOKEN"
 
 # Get study planner tasks
-curl http://localhost:8000/api/planner/history \
+curl http://localhost:8000/api/planner \
   -H "Authorization: Bearer $TOKEN"
 
 # Get notifications

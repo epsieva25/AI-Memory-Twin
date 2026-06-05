@@ -1,26 +1,102 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { motion } from 'framer-motion';
 import { 
-  AreaChart, Area, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer
+  AreaChart, Area, XAxis, YAxis, CartesianGrid, Tooltip
 } from 'recharts';
+import ChartContainer from '../components/ChartContainer';
 import { 
-  Heart, Moon, Battery, Smile, Frown, Meh, Wind, Music, Coffee, Sparkles
+  Heart, Moon, Battery, Smile, Frown, Meh, Wind, Music, Coffee, Sparkles, RefreshCw
 } from 'lucide-react';
 import Button from '../components/Button';
+import { stressService, predictionsService } from '../services/index';
+import toast from 'react-hot-toast';
 
-// Mock Data
-const moodHistory = [
-  { day: 'Mon', stress: 45, energy: 80, sleep: 7.5 },
-  { day: 'Tue', stress: 60, energy: 65, sleep: 6.0 },
-  { day: 'Wed', stress: 75, energy: 40, sleep: 5.5 },
-  { day: 'Thu', stress: 55, energy: 70, sleep: 7.0 },
-  { day: 'Fri', stress: 40, energy: 85, sleep: 8.0 },
-  { day: 'Sat', stress: 30, energy: 90, sleep: 8.5 },
-  { day: 'Sun', stress: 35, energy: 85, sleep: 7.5 },
-];
+import EmptyState from '../components/EmptyState';
 
 const StressMonitor = () => {
-  const [currentMood, setCurrentMood] = useState(null);
+  const [logs, setLogs] = useState([]);
+  const [loading, setLoading] = useState(true);
+  const [refreshing, setRefreshing] = useState(false);
+  const [burnoutRisk, setBurnoutRisk] = useState(15);
+  
+  // Daily check-in form state
+  const [mood, setMood] = useState('Okay');
+  const [stressLevel, setStressLevel] = useState(50);
+  const [energyLevel, setEnergyLevel] = useState(70);
+  const [sleepHours, setSleepHours] = useState(7);
+  const [submitting, setSubmitting] = useState(false);
+
+  const fetchData = async (isRefresh = false) => {
+    if (isRefresh) setRefreshing(true); else setLoading(true);
+    try {
+      const [logsRes, burnoutRes] = await Promise.allSettled([
+        stressService.getLogs(30),
+        predictionsService.getBurnoutRisk()
+      ]);
+
+      if (logsRes.status === 'fulfilled') {
+        setLogs(logsRes.value || []);
+      }
+      if (burnoutRes.status === 'fulfilled') {
+        const risk = burnoutRes.value?.risk_score !== undefined ? Math.round(burnoutRes.value.risk_score) : 15;
+        setBurnoutRisk(risk);
+      }
+      if (isRefresh) toast.success('Stress metrics updated!');
+    } catch (err) {
+      console.error(err);
+    } finally {
+      setLoading(false);
+      setRefreshing(false);
+    }
+  };
+
+  useEffect(() => {
+    fetchData();
+  }, []);
+
+  const handleCheckIn = async (e) => {
+    e.preventDefault();
+    setSubmitting(true);
+    try {
+      const moodMap = { Stressed: 'stressed', Okay: 'okay', Great: 'happy' };
+      const payload = {
+        stress_level: parseInt(stressLevel, 10),
+        mood: moodMap[mood] || mood.toLowerCase(),
+        sleep_hours: parseFloat(sleepHours),
+        energy_level: parseInt(energyLevel, 10),
+      };
+
+      await stressService.logStress(payload);
+      toast.success('Check-in submitted! Keep taking care of yourself. 🌸');
+      fetchData();
+    } catch (err) {
+      console.error(err);
+      toast.error('Failed to log daily wellness check-in.');
+    } finally {
+      setSubmitting(false);
+    }
+  };
+
+  // Calculations for displays
+  const latestLog = logs.length > 0 ? logs[0] : null;
+  const currentStressLevel = latestLog ? latestLog.stress_level : 45;
+  const averageSleep = logs.length > 0 
+    ? (logs.reduce((acc, curr) => acc + curr.sleep_hours, 0) / logs.length).toFixed(1)
+    : '7.2';
+
+  // Format history for the Recharts AreaChart
+  const getStressColor = (level) => {
+    if (level < 40) return 'text-green-400';
+    if (level < 70) return 'text-yellow-400';
+    return 'text-red-400';
+  };
+
+  const chartData = [...logs].reverse().map((log) => ({
+    day: new Date(log.timestamp).toLocaleDateString(undefined, { weekday: 'short' }),
+    stress: log.stress_level,
+    energy: log.energy_level,
+    sleep: log.sleep_hours,
+  }));
 
   const containerVariants = {
     hidden: { opacity: 0 },
@@ -32,15 +108,6 @@ const StressMonitor = () => {
     show: { opacity: 1, y: 0 }
   };
 
-  const currentStressLevel = 45; // out of 100
-  const burnoutProbability = 15; // out of 100
-
-  const getStressColor = (level) => {
-    if (level < 40) return 'text-green-400';
-    if (level < 70) return 'text-yellow-400';
-    return 'text-red-400';
-  };
-
   return (
     <motion.div 
       variants={containerVariants}
@@ -50,9 +117,11 @@ const StressMonitor = () => {
     >
       <div className="flex flex-col md:flex-row justify-between items-start md:items-center gap-4">
         <div>
-          <h1 className="text-3xl font-bold text-slate-200">Mental Wellness</h1>
-          <p className="text-slate-400">Track your stress levels and maintain a healthy balance.</p>
+          <h1 className="text-3xl font-bold text-slate-200">Mental Wellness Monitor</h1>
+          <p className="text-slate-400">Track your stress levels and maintain a healthy academic balance.</p>
         </div>
+        <Button variant="secondary" size="sm" onClick={() => fetchData(true)} isLoading={refreshing}
+          leftIcon={<RefreshCw className="w-4 h-4" />}>Refresh</Button>
       </div>
 
       <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
@@ -73,9 +142,9 @@ const StressMonitor = () => {
               {currentStressLevel}%
             </div>
             <p className="text-sm text-slate-300">
-              {currentStressLevel > 70 ? 'High stress detected. Take a break.' : 
-               currentStressLevel > 40 ? 'Moderate stress. Manageable.' : 
-               'Low stress. You are doing great!'}
+              {currentStressLevel > 70 ? 'High stress detected. Take a deep breath and rest.' : 
+               currentStressLevel > 40 ? 'Moderate stress. Fully manageable.' : 
+               'Low stress. You are doing fantastic!'}
             </p>
           </div>
 
@@ -83,38 +152,94 @@ const StressMonitor = () => {
             <div className="glass p-4 rounded-xl flex flex-col items-center justify-center text-center">
               <Moon className="w-6 h-6 text-indigo-400 mb-2" />
               <p className="text-xs text-slate-400">Avg. Sleep</p>
-              <h4 className="text-lg font-bold text-slate-200">7.2h</h4>
+              <h4 className="text-lg font-bold text-slate-200">{averageSleep}h</h4>
             </div>
             <div className="glass p-4 rounded-xl flex flex-col items-center justify-center text-center">
-              <Battery className={`w-6 h-6 mb-2 ${burnoutProbability > 50 ? 'text-red-400' : 'text-green-400'}`} />
+              <Battery className={`w-6 h-6 mb-2 ${burnoutRisk > 50 ? 'text-red-400' : 'text-green-400'}`} />
               <p className="text-xs text-slate-400">Burnout Risk</p>
-              <h4 className="text-lg font-bold text-slate-200">{burnoutProbability}%</h4>
+              <h4 className="text-lg font-bold text-slate-200">{burnoutRisk}%</h4>
             </div>
           </div>
 
+          {/* Daily Check-in Form */}
           <div className="glass p-6 rounded-2xl">
             <h3 className="text-lg font-bold text-slate-200 mb-4">Daily Check-in</h3>
-            <p className="text-sm text-slate-400 mb-4">How are you feeling today?</p>
-            <div className="flex justify-between">
-              {[
-                { icon: Frown, label: 'Stressed', color: 'text-red-400' },
-                { icon: Meh, label: 'Okay', color: 'text-yellow-400' },
-                { icon: Smile, label: 'Great', color: 'text-green-400' },
-              ].map((mood, idx) => (
-                <button
-                  key={idx}
-                  onClick={() => setCurrentMood(mood.label)}
-                  className={`flex flex-col items-center p-3 rounded-xl transition-all ${
-                    currentMood === mood.label 
-                      ? 'bg-white/10 border border-white/20 scale-105' 
-                      : 'hover:bg-white/5 border border-transparent'
-                  }`}
-                >
-                  <mood.icon className={`w-8 h-8 mb-2 ${mood.color}`} />
-                  <span className="text-xs text-slate-300">{mood.label}</span>
-                </button>
-              ))}
-            </div>
+            <form onSubmit={handleCheckIn} className="space-y-4">
+              <div>
+                <p className="text-sm text-slate-400 mb-2">How are you feeling today?</p>
+                <div className="flex justify-between gap-2">
+                  {[
+                    { label: 'Stressed', icon: Frown, color: 'text-red-400' },
+                    { label: 'Okay', icon: Meh, color: 'text-yellow-400' },
+                    { label: 'Great', icon: Smile, color: 'text-green-400' },
+                  ].map((item) => (
+                    <button
+                      type="button"
+                      key={item.label}
+                      onClick={() => setMood(item.label)}
+                      className={`flex-1 flex flex-col items-center p-2.5 rounded-xl transition-all ${
+                        mood === item.label 
+                          ? 'bg-white/10 border border-white/20 scale-105' 
+                          : 'hover:bg-white/5 border border-transparent'
+                      }`}
+                    >
+                      <item.icon className={`w-7 h-7 mb-1.5 ${item.color}`} />
+                      <span className="text-xs text-slate-300">{item.label}</span>
+                    </button>
+                  ))}
+                </div>
+              </div>
+
+              <div>
+                <div className="flex justify-between text-xs text-slate-400 mb-1">
+                  <span>Stress Level</span>
+                  <span className="text-slate-200 font-semibold">{stressLevel}%</span>
+                </div>
+                <input
+                  type="range"
+                  min="0"
+                  max="100"
+                  value={stressLevel}
+                  onChange={(e) => setStressLevel(e.target.value)}
+                  className="w-full h-1.5 bg-black/40 rounded-lg appearance-none cursor-pointer accent-purple-500"
+                />
+              </div>
+
+              <div>
+                <div className="flex justify-between text-xs text-slate-400 mb-1">
+                  <span>Energy Level</span>
+                  <span className="text-slate-200 font-semibold">{energyLevel}%</span>
+                </div>
+                <input
+                  type="range"
+                  min="0"
+                  max="100"
+                  value={energyLevel}
+                  onChange={(e) => setEnergyLevel(e.target.value)}
+                  className="w-full h-1.5 bg-black/40 rounded-lg appearance-none cursor-pointer accent-purple-500"
+                />
+              </div>
+
+              <div>
+                <div className="flex justify-between text-xs text-slate-400 mb-1">
+                  <span>Sleep Hours</span>
+                  <span className="text-slate-200 font-semibold">{sleepHours} hours</span>
+                </div>
+                <input
+                  type="range"
+                  min="3"
+                  max="12"
+                  step="0.5"
+                  value={sleepHours}
+                  onChange={(e) => setSleepHours(e.target.value)}
+                  className="w-full h-1.5 bg-black/40 rounded-lg appearance-none cursor-pointer accent-purple-500"
+                />
+              </div>
+
+              <Button type="submit" variant="primary" className="w-full mt-2" disabled={submitting}>
+                {submitting ? 'Submitting...' : 'Complete Check-in'}
+              </Button>
+            </form>
           </div>
 
         </motion.div>
@@ -123,9 +248,11 @@ const StressMonitor = () => {
         <motion.div variants={itemVariants} className="lg:col-span-2 space-y-6">
           <div className="glass p-6 rounded-2xl">
             <h3 className="text-lg font-bold text-slate-200 mb-6">Emotional Trend Analysis</h3>
-            <div className="h-64 w-full">
-              <ResponsiveContainer width="100%" height="100%">
-                <AreaChart data={moodHistory} margin={{ top: 10, right: 10, left: -20, bottom: 0 }}>
+            {chartData.length === 0 ? (
+              <EmptyState title="Log first check-in" description="Submit a daily wellness check-in to see stress and energy trends." />
+            ) : (
+            <ChartContainer height={256} minHeight={200}>
+                <AreaChart data={chartData} margin={{ top: 10, right: 10, left: -20, bottom: 0 }}>
                   <defs>
                     <linearGradient id="colorStress" x1="0" y1="0" x2="0" y2="1">
                       <stop offset="5%" stopColor="#ef4444" stopOpacity={0.3}/>
@@ -145,8 +272,8 @@ const StressMonitor = () => {
                   <Area type="monotone" dataKey="stress" name="Stress" stroke="#ef4444" fillOpacity={1} fill="url(#colorStress)" strokeWidth={2} />
                   <Area type="monotone" dataKey="energy" name="Energy" stroke="#10b981" fillOpacity={1} fill="url(#colorEnergy)" strokeWidth={2} />
                 </AreaChart>
-              </ResponsiveContainer>
-            </div>
+            </ChartContainer>
+            )}
           </div>
 
           <div className="glass p-6 rounded-2xl bg-gradient-to-br from-indigo-900/20 to-purple-900/20">

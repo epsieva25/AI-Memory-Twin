@@ -1,10 +1,26 @@
-import React from 'react';
+import React, { useEffect, useState } from 'react';
+import { Link, useNavigate } from 'react-router-dom';
 import { useTheme } from '../context/ThemeContext';
 import { Sun, Moon, Bell, Search, Menu } from 'lucide-react';
 import { motion } from 'framer-motion';
+import { notificationsService } from '../services/index';
 
-const Navbar = ({ toggleMobileMenu }) => {
+const Navbar = ({ toggleMobileMenu, profile }) => {
   const { theme, toggleTheme } = useTheme();
+  const [notifCount, setNotifCount] = useState(0);
+
+  const name = profile?.full_name || 'Student';
+  const department = profile?.department || 'CSE';
+  const year = profile?.year || 1;
+  const avatarUrl = `https://ui-avatars.com/api/?name=${encodeURIComponent(name)}&background=random`;
+
+  useEffect(() => {
+    notificationsService.getAll()
+      .then(data => {
+        if (Array.isArray(data)) setNotifCount(data.filter(n => !n.is_read).length);
+      })
+      .catch(() => {});
+  }, [profile]);
 
   return (
     <header className="h-20 glass-panel border-b border-white/10 px-6 flex items-center justify-between sticky top-0 z-40 backdrop-blur-xl">
@@ -34,27 +50,34 @@ const Navbar = ({ toggleMobileMenu }) => {
           {theme === 'dark' ? <Sun className="w-5 h-5" /> : <Moon className="w-5 h-5" />}
         </button>
 
-        <button className="p-2 rounded-full bg-white/5 hover:bg-white/10 text-slate-300 transition-colors relative">
+        <Link
+          to="/notifications"
+          className="p-2 rounded-full bg-white/5 hover:bg-white/10 text-slate-300 transition-colors relative inline-flex"
+        >
           <Bell className="w-5 h-5" />
-          <span className="absolute top-1 right-1 w-2 h-2 bg-purple-500 rounded-full animate-pulse" />
-        </button>
+          {notifCount > 0 && (
+            <span className="absolute -top-1 -right-1 min-w-[18px] h-[18px] bg-purple-500 text-white text-[10px] font-bold rounded-full flex items-center justify-center px-1">
+              {notifCount > 9 ? '9+' : notifCount}
+            </span>
+          )}
+        </Link>
 
-        <div className="flex items-center gap-3 pl-4 border-l border-white/10">
+        <Link to="/profile" className="flex items-center gap-3 pl-4 border-l border-white/10 hover:opacity-90 transition-opacity">
           <div className="hidden md:block text-right">
-            <p className="text-sm font-medium text-slate-200">Mary Jasper</p>
-            <p className="text-xs text-slate-400">CSE · Year 4</p>
+            <p className="text-sm font-medium text-slate-200">{name}</p>
+            <p className="text-xs text-slate-400">{department} · Year {year}</p>
           </div>
           <motion.div 
             whileHover={{ scale: 1.05 }}
             className="w-10 h-10 rounded-full bg-gradient-to-r from-purple-500 to-blue-500 p-0.5 cursor-pointer"
           >
             <img 
-              src="https://ui-avatars.com/api/?name=Mary+Jasper&background=random" 
+              src={avatarUrl}
               alt="Profile" 
               className="w-full h-full rounded-full border-2 border-black/20"
             />
           </motion.div>
-        </div>
+        </Link>
       </div>
     </header>
   );

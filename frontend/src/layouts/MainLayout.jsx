@@ -3,7 +3,7 @@ import { Outlet } from 'react-router-dom';
 import Sidebar from '../components/Sidebar';
 import Navbar from '../components/Navbar';
 
-const MainLayout = () => {
+const MainLayout = ({ profile }) => {
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
 
   const toggleMobileMenu = () => {
@@ -18,10 +18,10 @@ const MainLayout = () => {
         <div className="absolute bottom-[-10%] right-[-10%] w-[40%] h-[40%] rounded-full bg-blue-600/20 blur-[120px]" />
       </div>
 
-      <Sidebar mobileMenuOpen={mobileMenuOpen} setMobileMenuOpen={setMobileMenuOpen} />
+      <Sidebar mobileMenuOpen={mobileMenuOpen} setMobileMenuOpen={setMobileMenuOpen} profile={profile} />
       
       <div className="flex-1 flex flex-col md:ml-64 z-10 h-full overflow-hidden">
-        <Navbar toggleMobileMenu={toggleMobileMenu} />
+        <Navbar toggleMobileMenu={toggleMobileMenu} profile={profile} />
         
         <main className="flex-1 overflow-x-hidden overflow-y-auto bg-transparent p-4 md:p-6 pt-16 md:pt-6 custom-scrollbar">
           <Outlet />

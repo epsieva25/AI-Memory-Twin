@@ -7,53 +7,30 @@ import Skeleton from '../components/Skeleton';
 import EmptyState from '../components/EmptyState';
 import { graphService } from '../services/index';
 
-/* ─── Fallback rich mock data ────────────────────────────────────────────── */
-const FALLBACK_GRAPH = {
-  nodes: [
-    { id: 'Student', group: 1, val: 22, name: 'You (Student)' },
-    { id: 'AI',      group: 2, val: 16, name: 'Artificial Intelligence' },
-    { id: 'OS',      group: 2, val: 16, name: 'Operating Systems' },
-    { id: 'DB',      group: 2, val: 16, name: 'Database Systems' },
-    { id: 'NET',     group: 2, val: 16, name: 'Computer Networks' },
-    { id: 'MATH',    group: 2, val: 16, name: 'Mathematics' },
-    { id: 'NeuralNet',  group: 3, val: 10, name: 'Neural Networks (Weak)' },
-    { id: 'ML',         group: 3, val: 10, name: 'Machine Learning' },
-    { id: 'MemMgmt',    group: 3, val: 10, name: 'Memory Management' },
-    { id: 'SQL',        group: 3, val: 10, name: 'SQL Queries' },
-    { id: 'Normalize',  group: 3, val: 10, name: 'Normalization (Weak)' },
-    { id: 'TCPIP',      group: 3, val: 10, name: 'TCP/IP (Weak)' },
-    { id: 'Stress',     group: 4, val: 13, name: '⚠️ High Stress' },
-    { id: 'Productive', group: 4, val: 13, name: '✅ Productivity' },
-    { id: 'Burnout',    group: 4, val: 11, name: '🔥 Burnout Risk' },
-  ],
-  links: [
-    { source: 'Student', target: 'AI',      value: 3 },
-    { source: 'Student', target: 'OS',      value: 3 },
-    { source: 'Student', target: 'DB',      value: 3 },
-    { source: 'Student', target: 'NET',     value: 3 },
-    { source: 'Student', target: 'MATH',    value: 3 },
-    { source: 'AI',      target: 'NeuralNet', value: 2 },
-    { source: 'AI',      target: 'ML',        value: 2 },
-    { source: 'OS',      target: 'MemMgmt',   value: 2 },
-    { source: 'DB',      target: 'SQL',        value: 2 },
-    { source: 'DB',      target: 'Normalize',  value: 2 },
-    { source: 'NET',     target: 'TCPIP',      value: 2 },
-    { source: 'Student', target: 'Stress',     value: 2 },
-    { source: 'Student', target: 'Productive', value: 2 },
-    { source: 'Stress',  target: 'NeuralNet',  value: 1 },
-    { source: 'Stress',  target: 'Normalize',  value: 1 },
-    { source: 'Stress',  target: 'TCPIP',      value: 1 },
-    { source: 'Stress',  target: 'Burnout',    value: 1 },
-  ]
-};
+const EMPTY_GRAPH = { nodes: [], links: [] };
 
 /* ─── Node color scheme by group ────────────────────────────────────────── */
 const getNodeColor = (node) => {
   if (node.group === 1) return '#3b82f6';  // blue — student
   if (node.group === 2) return '#a855f7';  // purple — subjects
-  if (node.group === 3) return node.name.toLowerCase().includes('weak') ? '#ef4444' : '#10b981';
-  if (node.group === 4) return node.id === 'Burnout' ? '#ef4444' : node.id === 'Stress' ? '#f59e0b' : '#06b6d4';
+  if (node.group === 3) return '#10b981';  // green — tasks
+  if (node.group === 4) return '#ec4899';  // pink — asked concepts
+  if (node.group === 6) return '#f59e0b';  // orange — stress
+  if (node.group === 7) return '#06b6d4';  // cyan — interests/goals
   return '#94a3b8';
+};
+
+const getGroupLabel = (group) => {
+  const labels = {
+    1: 'Student Profile',
+    2: 'Academic Subject',
+    3: 'Study Task',
+    4: 'Asked Concept',
+    5: 'Connected Node',
+    6: 'Stress Level',
+    7: 'Academic Interest'
+  };
+  return labels[group] || 'Knowledge Node';
 };
 
 const paintNode = (node, ctx, globalScale) => {
@@ -105,16 +82,17 @@ const paintNode = (node, ctx, globalScale) => {
 const LEGEND = [
   { label: 'You (Student)', color: '#3b82f6' },
   { label: 'Subjects', color: '#a855f7' },
-  { label: 'Strong Concepts', color: '#10b981' },
-  { label: 'Weak Concepts', color: '#ef4444' },
-  { label: 'Metrics', color: '#f59e0b' },
+  { label: 'Study Tasks', color: '#10b981' },
+  { label: 'Asked Concepts', color: '#ec4899' },
+  { label: 'Stress Levels', color: '#f59e0b' },
+  { label: 'Academic Interests', color: '#06b6d4' },
 ];
 
 const GraphView = () => {
   const fgRef = useRef();
   const containerRef = useRef();
   const [dimensions, setDimensions] = useState({ width: 800, height: 600 });
-  const [graphData, setGraphData] = useState(FALLBACK_GRAPH);
+  const [graphData, setGraphData] = useState(EMPTY_GRAPH);
   const [loading, setLoading] = useState(true);
   const [hoveredNode, setHoveredNode] = useState(null);
   const [refreshing, setRefreshing] = useState(false);
@@ -160,8 +138,7 @@ const GraphView = () => {
         setGraphData({ nodes: [], links: [] });
       }
     } catch {
-      // Keep fallback if error
-      setGraphData(FALLBACK_GRAPH);
+      setGraphData(EMPTY_GRAPH);
     } finally {
       setLoading(false);
       setRefreshing(false);
@@ -225,7 +202,7 @@ const GraphView = () => {
           <div className="absolute top-4 left-4 z-10 bg-black/70 backdrop-blur-md px-4 py-3 rounded-xl border border-white/10 pointer-events-none">
             <p className="text-sm font-semibold text-slate-200">{hoveredNode.name}</p>
             <p className="text-xs text-slate-400 mt-0.5">
-              {['You', 'Subject', 'Concept', 'Metric'][hoveredNode.group - 1]}
+              {getGroupLabel(hoveredNode.group)}
             </p>
           </div>
         )}

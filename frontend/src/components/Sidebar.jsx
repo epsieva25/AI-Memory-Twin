@@ -3,7 +3,7 @@ import { NavLink, Link } from 'react-router-dom';
 import { motion, AnimatePresence } from 'framer-motion';
 import {
   LayoutDashboard, CalendarDays, MessageSquare, LineChart,
-  Brain, Share2, Bell, Settings, Menu, X
+  Brain, Share2, Bell, Settings, Menu, X, UserCircle
 } from 'lucide-react';
 
 const navItems = [
@@ -13,8 +13,9 @@ const navItems = [
   { name: 'Analytics',     path: '/analytics',      icon: LineChart },
   { name: 'Stress Monitor',path: '/stress',         icon: Brain },
   { name: 'Graph View',    path: '/graph',          icon: Share2 },
-  { name: 'Notifications', path: '/notifications',  icon: Bell },
-  { name: 'Settings',      path: '/settings',       icon: Settings },
+  { name: 'Notifications',    path: '/notifications',  icon: Bell },
+  { name: 'My Academic Twin', path: '/profile',          icon: UserCircle },
+  { name: 'Settings',         path: '/settings',         icon: Settings },
 ];
 
 const NavItem = ({ item, onClick }) => (
@@ -50,10 +51,15 @@ const Logo = () => (
   </div>
 );
 
-const Sidebar = () => {
+const Sidebar = ({ profile }) => {
   const [mobileOpen, setMobileOpen] = useState(false);
 
   const closeMobile = () => setMobileOpen(false);
+
+  const studentName = profile?.full_name || 'Student';
+  const initial = studentName.charAt(0).toUpperCase();
+  const department = profile?.department || 'CSE';
+  const year = profile?.year || 1;
 
   const SidebarContent = ({ onNav }) => (
     <>
@@ -68,15 +74,15 @@ const Sidebar = () => {
       </nav>
 
       <div className="p-4 border-t border-white/10 space-y-2">
-        <div className="px-4 py-2 rounded-xl bg-white/5 flex items-center gap-3">
+        <Link to="/profile" className="px-4 py-2 rounded-xl bg-white/5 hover:bg-white/10 flex items-center gap-3 transition-colors group">
           <div className="w-8 h-8 rounded-full bg-gradient-to-tr from-purple-500 to-blue-500 flex items-center justify-center text-white text-xs font-bold shrink-0">
-            M
+            {initial}
           </div>
           <div className="min-w-0">
-            <p className="text-sm font-semibold text-slate-200 truncate">Mary Jasper</p>
-            <p className="text-[10px] text-slate-500 truncate">CSE · Year 4</p>
+            <p className="text-sm font-semibold text-slate-200 truncate group-hover:text-purple-300 transition-colors">{studentName}</p>
+            <p className="text-[10px] text-slate-500 truncate">{department} · Year {year}</p>
           </div>
-        </div>
+        </Link>
       </div>
     </>
   );

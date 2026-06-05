@@ -1,14 +1,14 @@
 import React, { useState, useEffect, useRef, useCallback } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import {
-  Calendar as CalendarIcon, Clock, Plus, CheckCircle2,
-  Circle, Play, Pause, RotateCcw, Sparkles, Trash2, RefreshCw
+  Calendar as CalendarIcon, Clock, CheckCircle2,
+  Circle, Play, Pause, RotateCcw, Sparkles, Trash2, RefreshCw, AlertCircle
 } from 'lucide-react';
 import Button from '../components/Button';
-import Input from '../components/Input';
 import Skeleton from '../components/Skeleton';
 import EmptyState from '../components/EmptyState';
 import { plannerService } from '../services/index';
+import StudyInput from '../components/StudyInput';
 import toast from 'react-hot-toast';
 
 const PRIORITY_COLORS = {
@@ -23,17 +23,29 @@ const containerVariants = {
 };
 const itemVariants = { hidden: { opacity: 0, y: 20 }, show: { opacity: 1, y: 0 } };
 
+function plannerErrorMessage(err) {
+  const status = err?.response?.status;
+  const detail = err?.response?.data?.detail;
+  if (typeof detail === 'string') return detail;
+  if (detail?.message) return detail.message;
+  if (status === 404) return 'Complete profile setup to use the study planner.';
+  if (status === 405) return 'Planner API mismatch. Refresh the page or restart the backend.';
+  if (!err?.response) return 'Cannot reach the backend. Is Docker running on port 8000?';
+  return 'Could not load tasks. You can still add tasks below.';
+}
+
 const StudyPlanner = () => {
   const [tasks, setTasks] = useState([]);
   const [loading, setLoading] = useState(true);
-  const [error, setError] = useState(null);
+  const [loadError, setLoadError] = useState(null);
   const [generating, setGenerating] = useState(false);
   const [refreshing, setRefreshing] = useState(false);
   const [newTaskTitle, setNewTaskTitle] = useState('');
   const [newTaskSubject, setNewTaskSubject] = useState('');
+  const [newTaskPriority, setNewTaskPriority] = useState('Medium');
+  const [newTaskDuration, setNewTaskDuration] = useState('1.5');
   const [addingTask, setAddingTask] = useState(false);
 
-  /* ── Pomodoro timer ─────────────────────────────────────────────── */
   const [timerActive, setTimerActive] = useState(false);
   const [timeLeft, setTimeLeft]       = useState(25 * 60);
   const [sessions, setSessions]       = useState(0);
@@ -64,18 +76,19 @@ const StudyPlanner = () => {
   const formatTime = (s) =>
     `${Math.floor(s / 60).toString().padStart(2, '0')}:${(s % 60).toString().padStart(2, '0')}`;
 
-  /* ── Task API calls ──────────────────────────────────────────────── */
   const fetchTasks = useCallback(async (isRefresh = false) => {
     if (isRefresh) setRefreshing(true); else setLoading(true);
-    setError(null);
+    setLoadError(null);
     try {
-      const data = await plannerService.getHistory();
-      setTasks(data || []);
+      const data = await plannerService.getTasks();
+      setTasks(Array.isArray(data) ? data : []);
       if (isRefresh) toast.success('Tasks refreshed!');
     } catch (err) {
-      const msg = err.response?.data?.message || 'Unable to load planner history. Is the backend running?';
-      setError(msg);
+      const msg = plannerErrorMessage(err);
+      console.error('[StudyPlanner] GET /api/planner failed:', err?.response?.status, err?.message, err?.response?.data);
+      setLoadError(msg);
       setTasks([]);
+      if (isRefresh) toast.error(msg);
     } finally {
       setLoading(false);
       setRefreshing(false);
@@ -92,22 +105,17 @@ const StudyPlanner = () => {
       const newTask = await plannerService.createTask({
         task: newTaskTitle,
         subject: newTaskSubject || 'General',
-        duration: 1.5,
-        priority: 'Medium',
+        duration: parseFloat(newTaskDuration),
+        priority: newTaskPriority,
       });
       setTasks(prev => [newTask, ...prev]);
       setNewTaskTitle('');
       setNewTaskSubject('');
+      setLoadError(null);
       toast.success('Task added!');
-    } catch {
-      /* Optimistic local fallback */
-      setTasks(prev => [{
-        id: Date.now(), task: newTaskTitle, subject: newTaskSubject || 'General',
-        priority: 'Medium', is_completed: false, ai_generated: false,
-        created_at: new Date().toISOString()
-      }, ...prev]);
-      setNewTaskTitle('');
-      setNewTaskSubject('');
+    } catch (err) {
+      console.error('[StudyPlanner] POST /api/planner failed:', err?.response?.status, err?.message);
+      toast.error('Could not save task to server.');
     } finally {
       setAddingTask(false);
     }
@@ -118,26 +126,35 @@ const StudyPlanner = () => {
     setTasks(prev => prev.map(t => t.id === task.id ? updated : t));
     try {
       await plannerService.updateTask(task.id, { is_completed: updated.is_completed });
-    } catch {
-      // Revert on failure
+    } catch (err) {
+      console.error('[StudyPlanner] PUT /api/planner failed:', err?.response?.status);
       setTasks(prev => prev.map(t => t.id === task.id ? task : t));
+      toast.error('Could not update task.');
     }
   };
 
   const deleteTask = async (id) => {
+    const previous = tasks;
     setTasks(prev => prev.filter(t => t.id !== id));
     try {
       await plannerService.deleteTask(id);
-    } catch { /* task already removed from UI */ }
+    } catch (err) {
+      console.error('[StudyPlanner] DELETE /api/planner failed:', err?.response?.status);
+      setTasks(previous);
+      toast.error('Could not delete task.');
+    }
   };
 
   const generateAIPlan = async () => {
     setGenerating(true);
     try {
       const newTasks = await plannerService.generatePlan();
-      setTasks(prev => [...newTasks, ...prev]);
-      toast.success(`✨ AI generated ${newTasks.length} tasks based on your performance!`);
-    } catch {
+      const list = Array.isArray(newTasks) ? newTasks : [];
+      setTasks(prev => [...list, ...prev]);
+      setLoadError(null);
+      toast.success(`✨ AI generated ${list.length} tasks based on your performance!`);
+    } catch (err) {
+      console.error('[StudyPlanner] POST /api/planner/generate failed:', err?.response?.status);
       toast.error('AI plan generation requires academic records. Add some grades first!');
     } finally {
       setGenerating(false);
@@ -160,36 +177,16 @@ const StudyPlanner = () => {
     </div>
   );
 
-  if (error) return (
-    <div className="flex flex-col items-center justify-center min-h-[40vh] gap-4 text-center">
-      <div className="w-16 h-16 rounded-2xl bg-red-500/10 border border-red-500/20 flex items-center justify-center">
-        <CalendarIcon className="w-8 h-8 text-red-400" />
-      </div>
-      <div>
-        <h2 className="text-xl font-bold text-slate-200 mb-1">Unable to Load Planner</h2>
-        <p className="text-slate-400 text-sm max-w-md">{error}</p>
-      </div>
-      <Button
-        variant="secondary"
-        leftIcon={<RefreshCw className="w-4 h-4" />}
-        onClick={() => fetchTasks()}
-      >
-        Retry
-      </Button>
-    </div>
-  );
-
   return (
     <motion.div variants={containerVariants} initial="hidden" animate="show" className="space-y-6">
 
-      {/* Header */}
       <motion.div variants={itemVariants}
         className="flex flex-col md:flex-row justify-between items-start md:items-center gap-4">
         <div>
           <h1 className="text-3xl font-bold text-slate-200">AI Study Planner</h1>
           <p className="text-slate-400">Organize tasks and focus with Pomodoro sessions.</p>
         </div>
-        <div className="flex gap-3">
+        <div className="flex gap-3 flex-wrap">
           <Button variant="secondary" size="sm" isLoading={refreshing}
             leftIcon={<RefreshCw className="w-4 h-4" />}
             onClick={() => fetchTasks(true)}>
@@ -202,7 +199,19 @@ const StudyPlanner = () => {
         </div>
       </motion.div>
 
-      {/* Progress bar */}
+      {loadError && (
+        <motion.div variants={itemVariants}
+          className="flex flex-col sm:flex-row items-start sm:items-center gap-3 p-4 rounded-xl border border-amber-500/30 bg-amber-500/10">
+          <AlertCircle className="w-5 h-5 text-amber-400 shrink-0" />
+          <p className="text-sm text-amber-100/90 flex-1">{loadError}</p>
+          <Button variant="secondary" size="sm"
+            leftIcon={<RefreshCw className="w-4 h-4" />}
+            onClick={() => fetchTasks(true)}>
+            Retry
+          </Button>
+        </motion.div>
+      )}
+
       {total > 0 && (
         <motion.div variants={itemVariants} className="glass p-4 rounded-xl">
           <div className="flex justify-between items-center mb-2">
@@ -222,13 +231,11 @@ const StudyPlanner = () => {
 
       <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
 
-        {/* Task list */}
         <motion.div variants={itemVariants} className="lg:col-span-2 space-y-4">
           <div className="glass p-6 rounded-2xl">
             <h3 className="text-lg font-bold text-slate-200 mb-5">Task List</h3>
 
-            {/* Add task form */}
-            <form onSubmit={addTask} className="flex gap-2 mb-6">
+            <form onSubmit={addTask} className="flex flex-col md:flex-row gap-2 mb-6">
               <input
                 className="flex-1 bg-white/5 border border-white/10 rounded-xl px-4 py-2.5 text-slate-200 placeholder-slate-500 text-sm focus:outline-none focus:ring-2 focus:ring-purple-500/40 transition-all"
                 placeholder="Add task title..."
@@ -236,20 +243,42 @@ const StudyPlanner = () => {
                 onChange={e => setNewTaskTitle(e.target.value)}
               />
               <input
-                className="w-32 bg-white/5 border border-white/10 rounded-xl px-3 py-2.5 text-slate-200 placeholder-slate-500 text-sm focus:outline-none focus:ring-2 focus:ring-purple-500/40 transition-all hidden md:block"
+                className="w-full md:w-32 bg-white/5 border border-white/10 rounded-xl px-3 py-2.5 text-slate-200 placeholder-slate-500 text-sm focus:outline-none focus:ring-2 focus:ring-purple-500/40 transition-all"
                 placeholder="Subject"
                 value={newTaskSubject}
                 onChange={e => setNewTaskSubject(e.target.value)}
               />
-              <Button type="submit" size="icon" variant="secondary" isLoading={addingTask}>
-                <Plus className="w-5 h-5" />
+              <select
+                className="bg-slate-900/60 border border-white/10 rounded-xl px-3 py-2.5 text-slate-200 text-sm focus:outline-none focus:ring-2 focus:ring-purple-500/40 transition-all cursor-pointer"
+                value={newTaskPriority}
+                onChange={e => setNewTaskPriority(e.target.value)}
+              >
+                <option value="High" className="bg-[#0b0f19]">High Priority</option>
+                <option value="Medium" className="bg-[#0b0f19]">Medium Priority</option>
+                <option value="Low" className="bg-[#0b0f19]">Low Priority</option>
+              </select>
+              <select
+                className="bg-slate-900/60 border border-white/10 rounded-xl px-3 py-2.5 text-slate-200 text-sm focus:outline-none focus:ring-2 focus:ring-purple-500/40 transition-all cursor-pointer"
+                value={newTaskDuration}
+                onChange={e => setNewTaskDuration(e.target.value)}
+              >
+                <option value="0.5" className="bg-[#0b0f19]">0.5 hour</option>
+                <option value="1.0" className="bg-[#0b0f19]">1.0 hour</option>
+                <option value="1.5" className="bg-[#0b0f19]">1.5 hours</option>
+                <option value="2.0" className="bg-[#0b0f19]">2.0 hours</option>
+                <option value="3.0" className="bg-[#0b0f19]">3.0 hours</option>
+                <option value="4.0" className="bg-[#0b0f19]">4.0 hours</option>
+              </select>
+              <Button type="submit" variant="secondary" className="px-4 shrink-0" isLoading={addingTask}>
+                Add Task
               </Button>
             </form>
 
-            {/* Tasks */}
             {tasks.length === 0
               ? <EmptyState icon={CalendarIcon} title="No tasks yet"
-                  description="Add a task above or use AI Auto-Plan to generate your schedule."
+                  description={loadError
+                    ? 'Tasks could not be loaded. Add a task manually or retry above.'
+                    : 'Add a task above or use AI Auto-Plan to generate your schedule.'}
                   action={<Button onClick={generateAIPlan} leftIcon={<Sparkles className="w-4 h-4" />}>Generate AI Plan</Button>}
                 />
               : (
@@ -269,7 +298,7 @@ const StudyPlanner = () => {
                               : 'border-white/8 bg-black/20 hover:border-purple-500/30 hover:bg-black/30'
                           }`}
                         >
-                          <button onClick={() => toggleComplete(task)}
+                          <button type="button" onClick={() => toggleComplete(task)}
                             className="text-slate-400 hover:text-green-400 transition-colors shrink-0">
                             {task.is_completed
                               ? <CheckCircle2 className="w-5 h-5 text-green-400" />
@@ -285,7 +314,7 @@ const StudyPlanner = () => {
                             </h4>
                             <div className="flex items-center gap-3 mt-0.5 text-xs text-slate-500">
                               <span>{task.subject}</span>
-                              {task.duration && <><span>·</span><span>{task.duration}h</span></>}
+                              {task.duration != null && <><span>·</span><span>{task.duration}h</span></>}
                             </div>
                           </div>
 
@@ -293,8 +322,8 @@ const StudyPlanner = () => {
                             {task.priority}
                           </span>
 
-                          <button onClick={() => deleteTask(task.id)}
-                            className="p-1.5 text-slate-600 hover:text-red-400 hover:bg-red-500/10 rounded-lg transition-colors opacity-0 group-hover:opacity-100 shrink-0">
+                          <button type="button" onClick={() => deleteTask(task.id)}
+                            className="p-1.5 text-slate-600 hover:text-red-400 hover:bg-red-500/10 rounded-lg transition-colors opacity-100 sm:opacity-0 sm:group-hover:opacity-100 shrink-0">
                             <Trash2 className="w-3.5 h-3.5" />
                           </button>
                         </motion.div>
@@ -307,10 +336,8 @@ const StudyPlanner = () => {
           </div>
         </motion.div>
 
-        {/* Right column */}
         <motion.div variants={itemVariants} className="space-y-6">
 
-          {/* Pomodoro Timer */}
           <div className="glass p-6 rounded-2xl relative overflow-hidden flex flex-col items-center">
             <div className="absolute inset-0 bg-gradient-to-br from-purple-500/8 to-blue-500/8 pointer-events-none" />
             <h3 className="text-base font-bold text-slate-200 mb-1 w-full flex items-center justify-between">
@@ -319,8 +346,7 @@ const StudyPlanner = () => {
             </h3>
             <p className="text-xs text-slate-500 mb-6 w-full">Pomodoro · 25 min sessions</p>
 
-            {/* Ring */}
-            <div className="relative w-44 h-44 mb-6">
+            <div className="relative w-44 h-44 mb-6 min-h-[11rem]">
               <svg className="absolute inset-0 w-full h-full -rotate-90" viewBox="0 0 176 176">
                 <circle cx="88" cy="88" r="80" fill="none" stroke="rgba(168,85,247,0.1)" strokeWidth="8" />
                 <circle cx="88" cy="88" r="80" fill="none" stroke="url(#timerGrad)"
@@ -354,7 +380,8 @@ const StudyPlanner = () => {
             </div>
           </div>
 
-          {/* Quick Stats */}
+          <StudyInput onAdded={() => fetchTasks(true)} />
+
           <div className="glass p-5 rounded-2xl space-y-3">
             <h3 className="text-base font-bold text-slate-200">Summary</h3>
             {[

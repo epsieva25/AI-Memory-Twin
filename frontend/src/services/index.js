@@ -1,24 +1,31 @@
 import api, { tutorApi } from './api';
 
+export const profileService = {
+  get: () => api.get('/api/profile').then(r => r.data),
+  create: (data) => api.post('/api/profile/create', data).then(r => r.data),
+  update: (data) => api.put('/api/profile/update', data).then(r => r.data),
+};
+
 export const academicsService = {
-  getAll: () => api.get('/api/academics/').then(r => r.data),
-  create: (data) => api.post('/api/academics/', data).then(r => r.data),
+  getAll: () => api.get('/api/academics').then(r => r.data),
+  create: (data) => api.post('/api/academics', data).then(r => r.data),
   update: (id, data) => api.put(`/api/academics/${id}`, data).then(r => r.data),
   delete: (id) => api.delete(`/api/academics/${id}`).then(r => r.data),
 };
 
 export const analyticsService = {
-  getDashboard: () => api.get('/api/analytics/dashboard').then(r => r.data),
-  getPerformance: () => api.get('/api/analytics/performance').then(r => r.data),
-  getStress: () => api.get('/api/analytics/stress').then(r => r.data),
+  getDashboard: () => api.get('/api/dashboard').then(r => r.data),
+  getPerformance: () => api.get('/api/analytics').then(r => r.data),
+  getStress: () => api.get('/api/stress').then(r => r.data),
 };
 
 export const plannerService = {
-  getHistory: (completed) => {
+  /** GET /api/planner — list all tasks for the active student */
+  getTasks: (completed) => {
     const params = completed !== undefined ? { completed } : {};
-    return api.get('/api/planner/history', { params }).then(r => r.data);
+    return api.get('/api/planner', { params }).then(r => r.data);
   },
-  createTask: (data) => api.post('/api/planner/', data).then(r => r.data),
+  createTask: (data) => api.post('/api/planner', data).then(r => r.data),
   generatePlan: () => api.post('/api/planner/generate').then(r => r.data),
   updateTask: (id, data) => api.put(`/api/planner/${id}`, data).then(r => r.data),
   deleteTask: (id) => api.delete(`/api/planner/${id}`).then(r => r.data),
@@ -33,8 +40,8 @@ export const tutorService = {
 };
 
 export const stressService = {
-  getLogs: (limit = 30) => api.get('/api/stress/', { params: { limit } }).then(r => r.data),
-  logStress: (data) => api.post('/api/stress/', data).then(r => r.data),
+  getLogs: (limit = 30) => api.get('/api/stress', { params: { limit } }).then(r => r.data),
+  logStress: (data) => api.post('/api/stress', data).then(r => r.data),
   analyze: (text = '') => api.post('/api/stress/analyze', { text }).then(r => r.data),
   getReport: () => api.get('/api/stress/report').then(r => r.data),
 };
@@ -45,14 +52,15 @@ export const predictionsService = {
 };
 
 export const graphService = {
-  getStudentMap: (studentId = 1) => api.get(`/api/graph/student/${studentId}`).then(r => r.data),
+  getStudentMap: () => api.get('/api/graph').then(r => r.data),
   getPerformanceNetwork: () => api.get('/api/graph/performance-network').then(r => r.data),
 };
 
 export const notificationsService = {
-  getAll: () => api.get('/api/notifications/').then(r => r.data),
+  getAll: () => api.get('/api/notifications').then(r => r.data),
   markRead: (id) => api.put(`/api/notifications/${id}/read`).then(r => r.data),
   markAllRead: () => api.put('/api/notifications/read-all').then(r => r.data),
+  markReadPost: (payload) => api.post('/api/notifications/read', payload).then(r => r.data),
   delete: (id) => api.delete(`/api/notifications/${id}`).then(r => r.data),
 };
 

@@ -2,14 +2,14 @@
 Multi-Agent AI routes.
 
 Fixes applied:
-  - All endpoints wrapped in try/except with structured JSON fallback.
-  - Agent or DB failures never crash with a 500.
+  - Swapped get_demo_student with get_active_student.
+  - Returns 404 if no student profile is created yet.
 """
 import logging
 import traceback
-from fastapi import APIRouter, Depends, BackgroundTasks
+from fastapi import APIRouter, Depends, BackgroundTasks, HTTPException
 from sqlalchemy.orm import Session
-from database.connection import get_db
+from database.connection import get_db, get_active_student
 
 logger = logging.getLogger(__name__)
 
@@ -26,29 +26,12 @@ def _get_orchestrator():
         return None
 
 
-def get_demo_student(db: Session):
-    """Get or create the default demo student."""
-    from models.student import Student
-    student = db.query(Student).filter(Student.email == "demo@memorytwin.ai").first()
-    if not student:
-        student = Student(
-            name="Mary Jasper",
-            email="demo@memorytwin.ai",
-            department="CSE",
-            year=4,
-        )
-        db.add(student)
-        db.commit()
-        db.refresh(student)
-    return student
-
-
 @router.post("/run-cycle")
 def run_agent_cycle(
     background_tasks: BackgroundTasks,
     db: Session = Depends(get_db),
 ):
-    """Run a full agent orchestration cycle for the demo student."""
+    """Run a full agent orchestration cycle for the active student."""
     try:
         orchestrator = _get_orchestrator()
         if not orchestrator:
@@ -57,9 +40,13 @@ def run_agent_cycle(
                 "message": "Agent orchestrator is currently unavailable.",
                 "results": {},
             }
-        student = get_demo_student(db)
+        student = get_active_student(db)
+        if not student:
+            raise HTTPException(status_code=404, detail="Student profile not found")
         result = orchestrator.run_full_cycle(student.id, db)
         return {"success": True, "message": "Agent cycle completed", "results": result}
+    except HTTPException:
+        raise
     except Exception as e:
         logger.error(f"Error in POST /api/agents/run-cycle: {e}\n{traceback.format_exc()}")
         return {
@@ -71,7 +58,7 @@ def run_agent_cycle(
 
 @router.post("/motivation")
 def get_motivation(db: Session = Depends(get_db)):
-    """Generate a personalized motivational message for the demo student."""
+    """Generate a personalized motivational message for the active student."""
     try:
         orchestrator = _get_orchestrator()
         if not orchestrator:
@@ -84,7 +71,10 @@ def get_motivation(db: Session = Depends(get_db)):
                 ),
             }
 
-        student = get_demo_student(db)
+        student = get_active_student(db)
+        if not student:
+            raise HTTPException(status_code=404, detail="Student profile not found")
+
         from models.academic_record import AcademicRecord
         from models.stress_log import StressLog
 
@@ -105,7 +95,8 @@ def get_motivation(db: Session = Depends(get_db)):
             "weak_subjects": weak_subjects,
         })
         return result
-
+    except HTTPException:
+        raise
     except Exception as e:
         logger.error(f"Error in POST /api/agents/motivation: {e}\n{traceback.format_exc()}")
         return {

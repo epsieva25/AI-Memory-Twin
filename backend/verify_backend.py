@@ -40,13 +40,7 @@ def test_api_endpoint(url, method='GET', json_data=None, headers=None, timeout=1
 def test_database():
     """Test PostgreSQL database connectivity."""
     try:
-        conn = pg_connect(
-            host=settings.postgres_host,
-            port=settings.postgres_port,
-            user=settings.postgres_user,
-            password=settings.postgres_password,
-            database=settings.postgres_db
-        )
+        conn = pg_connect(settings.database_url)
         cursor = conn.cursor()
         cursor.execute("SELECT 1")
         result = cursor.fetchone()
@@ -86,7 +80,7 @@ def test_api_endpoints():
         ("GET", "/", None, 10),
         ("GET", "/health", None, 10),
         ("GET", "/api/graph/student-map", None, 10),
-        ("POST", "/api/tutor/chat", {"message": "test"}, 60),  # longer timeout for tutor
+        ("POST", "/api/tutor/chat", {"message": "test"}, 240),  # longer timeout for tutor
     ]
     
     results = []

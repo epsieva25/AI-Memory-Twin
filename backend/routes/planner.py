@@ -14,7 +14,7 @@ from typing import Optional
 import logging
 import traceback
 from datetime import datetime
-from database.connection import get_db
+from database.connection import get_db, get_active_student
 from models.study_plan import StudyPlan
 from schemas.schemas import StudyPlanCreate, StudyPlanUpdate
 
@@ -33,9 +33,9 @@ def _serialize_task(t: StudyPlan) -> dict:
         "duration": t.duration,
         "priority": t.priority,
         "deadline": t.deadline.isoformat() if t.deadline else None,
-        "is_completed": t.is_completed,
+        "completed": t.completed,
+        "is_completed": t.completed,  # Frontend compat alias
         "ai_generated": t.ai_generated,
-        "created_at": t.created_at.isoformat() if t.created_at else None,
     }
 
 
@@ -49,64 +49,88 @@ def _offline_task(task_id: int, message: str) -> dict:
         "duration": 0.0,
         "priority": "High",
         "deadline": None,
+        "completed": False,
         "is_completed": False,
         "ai_generated": False,
         "created_at": datetime.utcnow().isoformat(),
     }
 
 
-def get_demo_student(db: Session):
-    """Get or create the default demo student."""
-    from models.student import Student
-    student = db.query(Student).filter(Student.email == "demo@memorytwin.ai").first()
+def _list_tasks(completed: Optional[bool], db: Session):
+    """Return all study plan tasks for the active student."""
+    student = get_active_student(db)
     if not student:
-        student = Student(
-            name="Mary Jasper",
-            email="demo@memorytwin.ai",
-            department="CSE",
-            year=4,
-        )
-        db.add(student)
-        db.commit()
-        db.refresh(student)
-    return student
+        raise HTTPException(status_code=404, detail="Student profile not found")
+    query = db.query(StudyPlan).filter(StudyPlan.student_id == student.id)
+    if completed is not None:
+        query = query.filter(StudyPlan.completed == completed)
+    tasks = query.order_by(StudyPlan.id.desc()).all()
+    return [_serialize_task(t) for t in tasks]
 
 
-# ─── GET /history ─────────────────────────────────────────────────────────────
-@router.get("/history")
-def get_planner_history(
+# ─── GET / (list tasks) ───────────────────────────────────────────────────────
+@router.get("")
+@router.get("/")
+def list_planner_tasks(
     completed: Optional[bool] = None,
     db: Session = Depends(get_db)
 ):
-    """Return all study plan tasks for the demo student."""
+    """Return all study plan tasks for the active student."""
     try:
-        student = get_demo_student(db)
-        query = db.query(StudyPlan).filter(StudyPlan.student_id == student.id)
-        if completed is not None:
-            query = query.filter(StudyPlan.is_completed == completed)
-        tasks = query.order_by(StudyPlan.created_at.desc()).all()
-        return [_serialize_task(t) for t in tasks]
+        return _list_tasks(completed, db)
+    except HTTPException:
+        raise
+    except Exception as e:
+        logger.error(
+            f"DB error in GET /api/planner: {e}\n{traceback.format_exc()}"
+        )
+        return []
+
+
+@router.get("/history")
+def list_planner_tasks_legacy(
+    completed: Optional[bool] = None,
+    db: Session = Depends(get_db)
+):
+    """Legacy alias for GET /api/planner (older frontends used /history)."""
+    try:
+        return _list_tasks(completed, db)
+    except HTTPException:
+        raise
     except Exception as e:
         logger.error(
             f"DB error in GET /api/planner/history: {e}\n{traceback.format_exc()}"
         )
-        return [_offline_task(999, "Database is currently offline. Viewing offline mode.")]
+        return []
 
 
 # ─── POST / ───────────────────────────────────────────────────────────────────
-@router.post("/", status_code=201)
+@router.post("", status_code=201)
 def create_task(
     task: StudyPlanCreate,
     db: Session = Depends(get_db)
 ):
     """Create a new study task."""
     try:
-        student = get_demo_student(db)
-        new_task = StudyPlan(**task.model_dump(), student_id=student.id)
+        student = get_active_student(db)
+        if not student:
+            raise HTTPException(status_code=404, detail="Student profile not found")
+        new_task = StudyPlan(
+            student_id=student.id,
+            task=task.task,
+            subject=task.subject,
+            priority=task.priority,
+            deadline=task.deadline,
+            duration=task.duration,
+            ai_generated=task.ai_generated,
+            completed=False
+        )
         db.add(new_task)
         db.commit()
         db.refresh(new_task)
         return _serialize_task(new_task)
+    except HTTPException:
+        raise
     except Exception as e:
         logger.error(f"Error creating task: {e}\n{traceback.format_exc()}")
         raise HTTPException(
@@ -122,15 +146,19 @@ def generate_ai_plan(
 ):
     """Generate an AI-driven study plan from academic records."""
     try:
-        student = get_demo_student(db)
+        student = get_active_student(db)
+        if not student:
+            raise HTTPException(status_code=404, detail="Student profile not found")
         from services.planner_service import generate_study_plan
         tasks = generate_study_plan(student.id, db)
         return [_serialize_task(t) for t in tasks]
+    except HTTPException:
+        raise
     except Exception as e:
         logger.error(
             f"DB/AI error in POST /api/planner/generate: {e}\n{traceback.format_exc()}"
         )
-        return [_offline_task(998, "Offline mode active. Could not generate plan.")]
+        return []
 
 
 # ─── PUT /{task_id} ───────────────────────────────────────────────────────────
@@ -142,16 +170,34 @@ def update_task(
 ):
     """Update a study task's completion status or priority."""
     try:
-        student = get_demo_student(db)
+        student = get_active_student(db)
+        if not student:
+            raise HTTPException(status_code=404, detail="Student profile not found")
         task = db.query(StudyPlan).filter(
             StudyPlan.id == task_id, StudyPlan.student_id == student.id
         ).first()
         if not task:
             raise HTTPException(status_code=404, detail="Task not found")
-        for field, value in updates.model_dump(exclude_none=True).items():
-            setattr(task, field, value)
+        
+        # Handle completed and is_completed fields dynamically
+        up_dict = updates.model_dump(exclude_none=True)
+        if "is_completed" in up_dict and "completed" not in up_dict:
+            up_dict["completed"] = up_dict["is_completed"]
+        
+        for field, value in up_dict.items():
+            if field in ("completed", "priority", "task", "subject", "deadline", "duration"):
+                setattr(task, field, value)
+                
         db.commit()
         db.refresh(task)
+
+        # Sync update to Neo4j (completed relationship)
+        try:
+            from graphdb.neo4j_service import sync_task
+            sync_task(student.id, task.task, task.completed)
+        except Exception as neo_e:
+            logger.warning(f"Neo4j sync failed for task update: {neo_e}")
+
         return _serialize_task(task)
     except HTTPException:
         raise
@@ -171,7 +217,9 @@ def delete_task(
 ):
     """Delete a study task."""
     try:
-        student = get_demo_student(db)
+        student = get_active_student(db)
+        if not student:
+            raise HTTPException(status_code=404, detail="Student profile not found")
         task = db.query(StudyPlan).filter(
             StudyPlan.id == task_id, StudyPlan.student_id == student.id
         ).first()

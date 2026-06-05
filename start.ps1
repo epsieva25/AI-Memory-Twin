@@ -1,4 +1,4 @@
-# ============================================================
+﻿# ============================================================
 #  AI Memory Twin for Students — Robust Startup Script
 #  Windows PowerShell | Version 2.0
 #  Handles TLS timeouts, pull retries, health verification
